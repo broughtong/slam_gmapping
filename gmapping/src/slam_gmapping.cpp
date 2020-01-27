@@ -167,7 +167,6 @@ SlamGMapping::SlamGMapping(long unsigned int seed, long unsigned int max_duratio
 void SlamGMapping::init()
 {
   // log4cxx::Logger::getLogger(ROSCONSOLE_DEFAULT_NAME)->setLevel(ros::console::g_level_lookup[ros::console::levels::Debug]);
-
   // The library is pretty chatty
   //gsp_ = new GMapping::GridSlamProcessor(std::cerr);
   gsp_ = new GMapping::GridSlamProcessor();
@@ -556,6 +555,10 @@ SlamGMapping::addScan(const sensor_msgs::LaserScan& scan, GMapping::OrientedPoin
   if(scan.ranges.size() != gsp_laser_beam_count_)
     return false;
 
+  double minVal = 0.0;
+  double maxVal = 80.0;
+  double maxValThresh = 0.5;
+
   // GMapping wants an array of doubles...
   double* ranges_double = new double[scan.ranges.size()];
   // If the angle increment is negative, we have to invert the order of the readings.
@@ -563,26 +566,44 @@ SlamGMapping::addScan(const sensor_msgs::LaserScan& scan, GMapping::OrientedPoin
   {
     ROS_DEBUG("Inverting scan");
     int num_ranges = scan.ranges.size();
+
     for(int i=0; i < num_ranges; i++)
     {
       // Must filter out short readings, because the mapper won't
-      if(scan.ranges[num_ranges - i - 1] < scan.range_min)
-        ranges_double[i] = (double)scan.range_max;
+      if(scan.ranges[num_ranges - i - 1] <= scan.range_min)
+      {
+        //ranges_double[i] = (double)scan.range_max;
+        ranges_double[i] = minVal;
+      }
+      else if(scan.ranges[num_ranges - i - 1] > scan.range_max - maxValThresh)
+      {
+        ranges_double[i] = maxVal;
+      }
       else
+      {
         ranges_double[i] = (double)scan.ranges[num_ranges - i - 1];
+      }
     }
   } else 
   {
     for(unsigned int i=0; i < scan.ranges.size(); i++)
     {
       // Must filter out short readings, because the mapper won't
-      if(scan.ranges[i] < scan.range_min)
-        ranges_double[i] = (double)scan.range_max;
+      if(scan.ranges[i] <= scan.range_min)
+      {
+        //ranges_double[i] = (double)scan.range_max;
+        ranges_double[i] = minVal;
+      }
+      else if(scan.ranges[i] > scan.range_max - maxValThresh)
+      {
+        ranges_double[i] = maxVal;
+      }
       else
+      {
         ranges_double[i] = (double)scan.ranges[i];
+      }
     }
   }
-
   GMapping::RangeReading reading(scan.ranges.size(),
                                  ranges_double,
                                  gsp_laser_,
